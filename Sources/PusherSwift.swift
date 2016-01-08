@@ -18,17 +18,26 @@ let PROTOCOL = 7
 let VERSION = "0.1.6"
 let CLIENT_NAME = "pusher-websocket-swift"
 
+public protocol PusherDelegate{
+    func PusherDisconnected()
+    func PusherReconnecting()
+    func PusherConnected()
+    func PusherCantReconnect()
+}
 public class Pusher {
     public let connection: PusherConnection
-
-    public init(key: String, options: Dictionary<String, Any>? = nil) {
+    public var delegate: PusherDelegate?
+    public var reconnecting: Bool
+    
+    public init(key: String,options: Dictionary<String, Any>? = nil) {
         let pusherClientOptions = PusherClientOptions(options: options)
         let urlString = constructUrl(key, options: pusherClientOptions)
         let ws = WebSocket(url: NSURL(string: urlString)!)
+        reconnecting = false
         connection = PusherConnection(key: key, socket: ws, url: urlString, options: pusherClientOptions)
         connection.createGlobalChannel()
     }
-
+    
     public func subscribe(channelName: String) -> PusherChannel {
         return self.connection.subscribe(channelName)
     }
@@ -52,7 +61,10 @@ public class Pusher {
     public func disconnect() {
         self.connection.disconnect()
     }
-
+    public func setDelegate(delegate:PusherDelegate){
+        self.delegate = delegate
+        self.connection.delegate = delegate
+    }
     public func connect() {
         self.connection.connect()
     }
@@ -151,7 +163,8 @@ public class PusherConnection: WebSocketDelegate {
     public var channels = PusherChannels()
     public var socket: WebSocket!
     public var URLSession: NSURLSession
-
+    public var delegate: PusherDelegate?
+    
     public init(key: String, socket: WebSocket, url: String, options: PusherClientOptions, URLSession: NSURLSession = NSURLSession.sharedSession()) {
         self.url = url
         self.key = key
@@ -514,6 +527,9 @@ public class PusherConnection: WebSocketDelegate {
     }
 
     public func websocketDidDisconnect(ws: WebSocket, error: NSError?) {
+        if(self.delegate != nil){
+            self.delegate?.PusherDisconnected()
+        }
         if let error = error {
             print("Websocket is disconnected: \(error.localizedDescription)")
         }
@@ -525,7 +541,9 @@ public class PusherConnection: WebSocketDelegate {
 
         if let reconnect = self.options.autoReconnect where reconnect {
             let reachability = try! Reachability.reachabilityForInternetConnection()
-
+            if(self.delegate != nil){
+                self.delegate?.PusherReconnecting()
+            }
             if let reachability = try? Reachability.reachabilityForInternetConnection() {
 
                 reachability.whenReachable = { reachability in
@@ -537,13 +555,21 @@ public class PusherConnection: WebSocketDelegate {
                 reachability.whenUnreachable = { reachability in
                     print("Network unreachable")
                 }
+            }else{
+                if(self.delegate != nil){
+                    self.delegate?.PusherCantReconnect()
+                }
             }
 
             if let _ = try? reachability.startNotifier() {}
         }
     }
 
-    public func websocketDidConnect(ws: WebSocket) {}
+    public func websocketDidConnect(ws: WebSocket) {
+        if(self.delegate != nil){
+            self.delegate?.PusherConnected()
+        }
+    }
     public func websocketDidReceiveData(ws: WebSocket, data: NSData) {}
 }
 
