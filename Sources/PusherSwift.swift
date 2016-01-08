@@ -532,6 +532,13 @@ public class PusherConnection: WebSocketDelegate {
         }
         if let error = error {
             print("Websocket is disconnected: \(error.localizedDescription)")
+            if(self.delegate != nil){
+                self.delegate?.PusherDisconnected()
+            }
+        }else{
+            if(self.delegate != nil){
+                self.delegate?.PusherReconnecting()
+            }
         }
 
         self.connected = false
@@ -541,9 +548,7 @@ public class PusherConnection: WebSocketDelegate {
 
         if let reconnect = self.options.autoReconnect where reconnect {
             let reachability = try! Reachability.reachabilityForInternetConnection()
-            if(self.delegate != nil){
-                self.delegate?.PusherReconnecting()
-            }
+            
             if let reachability = try? Reachability.reachabilityForInternetConnection() {
 
                 reachability.whenReachable = { reachability in
